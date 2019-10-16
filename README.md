@@ -454,13 +454,120 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 ```
 - And we need to remove them (2 last resources ) before next part. 
 
+## Modules and variables
+- Moved variables to where they should be [variables.tf](variables.tf)
+  ```terraform
+  variable "project" {
+    default = "tf-gettingstarted"
+  }
+
+  variable "credentials_file" {
+    default = "~/Keys/tf-gettingstarted-ade17a5d7ec1.json"
+  }
+
+  variable "region" {
+    default = "us-central1"
+  }
+
+  variable "zone" {
+    default = "us-central1-c"
+  }
+
+  variable "cidrs" {
+    default = ["10.0.0.0/16", "10.1.0.0/16"]
+  }
+  ```
+- Used them inm [main.tf](main.tf): 
+  ```terraform
+  provider "google" {
+    credentials = file(var.credentials_file)
+
+    project = var.project
+    region  = var.region
+    zone    = var.zone
+  }
+  ```
+- Applied one modules : 
+  ```terraform
+  module "network" {
+    source  = "terraform-google-modules/network/google"
+    version = "1.1.0"
+
+    network_name = "terraform-vpc-network"
+    project_id   = var.project
+
+    subnets = [
+      {
+        subnet_name   = "subnet-01"
+        subnet_ip     = var.cidrs[0]
+        subnet_region = var.region
+      },
+      {
+        subnet_name   = "subnet-02"
+        subnet_ip     = var.cidrs[1]
+        subnet_region = var.region
+
+        subnet_private_access = "true"
+      },
+    ]
+
+    secondary_ranges = {
+      subnet-01 = []
+      subnet-02 = []
+    }
+  }
+  ```
+- And output [outputs.tf](outputs.tf)
+  ```terraform
+  output "vpc_network_subnets_ips" {
+    value = module.network.subnets_ips
+  }
+  ```
+- After 2-nd apply : 
+```
+Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
+
+Outputs:
+
+vpc_network_subnets_ips = [
+  "10.0.0.0/16",
+  "10.1.0.0/16",
+]
+```
+- `terraform destroy` to cleanup : 
+  ```bash
+  google_compute_instance.vm_instance: Destroying... [id=terraform-instance]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 10s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 20s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 30s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 40s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 50s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m0s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m10s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m20s elapsed]
+  google_compute_instance.vm_instance: Destruction complete after 1m29s
+  module.network.google_compute_subnetwork.subnetwork[0]: Destroying... [id=us-central1/subnet-01]
+  module.network.google_compute_subnetwork.subnetwork[1]: Destroying... [id=us-central1/subnet-02]
+  google_compute_address.vm_static_ip: Destroying... [id=tf-gettingstarted/us-central1/terraform-static-ip]
+  google_compute_address.vm_static_ip: Destruction complete after 4s
+  module.network.google_compute_subnetwork.subnetwork[0]: Still destroying... [id=us-central1/subnet-01, 10s elapsed]
+  module.network.google_compute_subnetwork.subnetwork[1]: Still destroying... [id=us-central1/subnet-02, 10s elapsed]
+  module.network.google_compute_subnetwork.subnetwork[0]: Destruction complete after 16s
+  module.network.google_compute_subnetwork.subnetwork[1]: Destruction complete after 17s
+  module.network.google_compute_network.network: Destroying... [id=terraform-vpc-network]
+  module.network.google_compute_network.network: Still destroying... [id=terraform-vpc-network, 10s elapsed]
+  module.network.google_compute_network.network: Still destroying... [id=terraform-vpc-network, 20s elapsed]
+  module.network.google_compute_network.network: Still destroying... [id=terraform-vpc-network, 30s elapsed]
+  module.network.google_compute_network.network: Destruction complete after 37s
+
+  Destroy complete! Resources: 5 destroyed.
+  ```
+
 
 # TODO
 
 
-- [ ] Provision
-- [ ] Input Variables
-- [ ] Output Variables
+
 
 # DONE
 - [x] objectives
@@ -469,3 +576,6 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 - [x] Change Infrastructure
 - [x] Destroy Infrastructure
 - [x] Resource Dependencies
+- [x] Provision
+- [x] Input Variables
+- [x] Output Variables

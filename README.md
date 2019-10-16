@@ -247,11 +247,37 @@ You can read more about service account keys in [Google's documentation](https:/
   Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
   ```
 
+## Destroy Infrastructure
+- Running `terraform destroy` : 
+  ```bash
+  google_compute_instance.vm_instance: Destroying... [id=terraform-instance]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 10s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 20s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 30s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 40s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 50s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m0s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m10s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m20s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m30s elapsed]
+  google_compute_instance.vm_instance: Still destroying... [id=terraform-instance, 1m40s elapsed]
+  google_compute_instance.vm_instance: Destruction complete after 1m49s
+  google_compute_network.vpc_network: Destroying... [id=terraform-network]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 10s elapsed]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 20s elapsed]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 30s elapsed]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 40s elapsed]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 50s elapsed]
+  google_compute_network.vpc_network: Still destroying... [id=terraform-network, 1m0s elapsed]
+  google_compute_network.vpc_network: Destruction complete after 1m8s
+
+  Destroy complete! Resources: 2 destroyed.  
+  ```
+
 
 # TODO
 
 
-- [ ] Destroy Infrastructure
 - [ ] Resource Dependencies
 - [ ] Provision
 - [ ] Input Variables
@@ -262,3 +288,4 @@ You can read more about service account keys in [Google's documentation](https:/
 - [x] setting up GCP
 - [x] Build Infrastructure
 - [x] Change Infrastructure
+- [x] Destroy Infrastructure

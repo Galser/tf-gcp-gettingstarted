@@ -169,7 +169,7 @@ You can read more about service account keys in [Google's documentation](https:/
 
 ### Destructive changes
 
-- Let's change the disk image of our instance. Edit the boot_disk block inside your vm_instance resource your configuration file and change it to the following: 
+- Let's change the disk image of our instance. Edit the boot_disk block inside your `vm_instance` resource your configuration file and change it to the following: 
     ```terraform
     ...
     boot_disk {
@@ -274,11 +274,190 @@ You can read more about service account keys in [Google's documentation](https:/
   Destroy complete! Resources: 2 destroyed.  
   ```
 
+## Resource Dependencies
+- Now we'll improve your configuration by assigning a static IP to the VM instance we're managing. Modify your [main.tf](main.tf) and add the following:
+  ```terraform
+  resource "google_compute_address" "vm_static_ip" {
+    name = "terraform-static-ip"
+  }
+  ```
+- This should look familiar from the earlier example of adding a VM instance resource, except this time we're creating an "google_compute_address" resource type. This resource type allocates a reserved IP address to your project. You can see what will be created with terraform plan:
+  ```bash
+  terraform plan 
+  Refreshing Terraform state in-memory prior to plan...
+  The refreshed state will be used to calculate this plan, but will not be
+  persisted to local or remote state storage.
+
+  google_compute_network.vpc_network: Refreshing state... [id=terraform-network]
+  google_compute_instance.vm_instance: Refreshing state... [id=terraform-instance]
+
+  ------------------------------------------------------------------------
+
+  An execution plan has been generated and is shown below.
+  Resource actions are indicated with the following symbols:
+    + create
+
+  Terraform will perform the following actions:
+
+    # google_compute_address.vm_static_ip will be created
+    + resource "google_compute_address" "vm_static_ip" {
+        + address            = (known after apply)
+        + address_type       = "EXTERNAL"
+        + creation_timestamp = (known after apply)
+        + id                 = (known after apply)
+        + name               = "terraform-static-ip"
+        + network_tier       = (known after apply)
+        + project            = (known after apply)
+        + purpose            = (known after apply)
+        + region             = (known after apply)
+        + self_link          = (known after apply)
+        + subnetwork         = (known after apply)
+        + users              = (known after apply)
+      }
+
+  Plan: 1 to add, 0 to change, 0 to destroy.
+
+  ------------------------------------------------------------------------
+
+  Note: You didn't specify an "-out" parameter to save this plan, so Terraform
+  can't guarantee that exactly these actions will be performed if
+  "terraform apply" is subsequently run.
+  ```
+- Now, before applying. let's update  the `network_interface` configuration for your instance like so:
+  ```terraform
+    network_interface {
+      network = google_compute_network.vpc_network.self_link
+      access_config {
+        nat_ip = google_compute_address.vm_static_ip.address
+      }
+    }
+  ```
+- We'll run terraform plan again, but this time, let's save the plan:
+  ```bash
+  $ terraform plan -out static_ip
+
+  Refreshing Terraform state in-memory prior to plan...
+  The refreshed state will be used to calculate this plan, but will not be
+  persisted to local or remote state storage.
+
+  google_compute_network.vpc_network: Refreshing state... [id=terraform-network]
+  google_compute_instance.vm_instance: Refreshing state... [id=terraform-instance]
+
+  ------------------------------------------------------------------------
+
+  An execution plan has been generated and is shown below.
+  Resource actions are indicated with the following symbols:
+    + create
+    ~ update in-place
+
+  ...
+    # google_compute_instance.vm_instance will be updated in-place
+    ~ resource "google_compute_instance" "vm_instance" {
+          can_ip_forward       = false
+          cpu_platform         = "Intel Haswell"
+  ...
+        ~ network_interface {
+              name               = "nic0"
+              network            = "https://www.googleapis.com/compute/v1/projects/tf-gettingstarted/global/networks/terraform-network"
+              network_ip         = "10.128.0.2"
+              subnetwork         = "https://www.googleapis.com/compute/v1/projects/tf-gettingstarted/regions/us-central1/subnetworks/terraform-network"
+              subnetwork_project = "tf-gettingstarted"
+
+            ~ access_config {
+                ~ nat_ip       = "34.67.7.20" -> (known after apply)
+  ...
+  Plan: 1 to add, 1 to change, 0 to destroy.
+
+  ------------------------------------------------------------------------
+
+  This plan was saved to: static_ip
+
+  To perform exactly these actions, run the following command to apply:
+      terraform apply "static_ip"
+  ```
+  Saving the plan this way ensures that we can apply exactly the same plan in the future. If we try to apply the file created by the plan, Terraform will first check to make sure the exact same set of changes will be made before applying the plan.
+
+  In this case, we can see that Terraform will create a new `google_compute_address` and update the existing VM to use it.
+- Run `terraform apply "static_ip"` to see how Terraform plans to apply this change. The output will look similar to the following:
+  ```bash
+  google_compute_address.vm_static_ip: Creating...
+  google_compute_address.vm_static_ip: Creation complete after 5s [id=tf-gettingstarted/us-central1/terraform-static-ip]
+  google_compute_instance.vm_instance: Modifying... [id=terraform-instance]
+  google_compute_instance.vm_instance: Still modifying... [id=terraform-instance, 10s elapsed]
+  google_compute_instance.vm_instance: Still modifying... [id=terraform-instance, 20s elapsed]
+  google_compute_instance.vm_instance: Still modifying... [id=terraform-instance, 30s elapsed]
+  google_compute_instance.vm_instance: Modifications complete after 34s [id=terraform-instance]
+
+  Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
+
+  The state of your infrastructure has been saved to the path
+  below. This state is required to modify and destroy your
+  infrastructure, so keep it safe. To inspect the complete state
+  use the `terraform show` command.
+
+  State path: terraform.tfstate
+  ```
+### Implicit and Explicit Dependencies
+By studying the resource attributes used in interpolation expressions, Terraform can automatically infer when one resource depends on another. In the example above, the reference to `google_compute_address.vm_static_ip.address` creates an *implicit dependency* on the `google_compute_address` named `vm_static_ip`.
+
+Terraform uses this dependency information to determine the correct order in which to create and update different resources. In the example above, Terraform knows that the `vm_static_ip` must be created before the `vm_instance` is updated to use it.
+
+Implicit dependencies via interpolation expressions are the primary way to inform Terraform about these relationships, and should be used whenever possible.
+
+Sometimes there are dependencies between resources that are not visible to Terraform. The `depends_on` argument is accepted by any resource and accepts a list of resources to create *explicit dependencies* for.
+
+For example, perhaps an application we will run on our instance expects to use a specific Cloud Storage bucket, but that dependency is configured inside the application code and thus not visible to Terraform. In that case, we can use `depends_on` to explicitly declare the dependency:
+  ```terraform
+  # New resource for the storage bucket our application will use.
+  resource "google_storage_bucket" "example_bucket" {
+    name     = "terraform-example-bucket-galser-20191016-01"
+    location = "US"
+
+    website {
+      main_page_suffix = "index.html"
+      not_found_page   = "404.html"
+    }
+  }
+
+  # Create a new instance that uses the bucket
+  resource "google_compute_instance" "another_instance" {
+    # Tells Terraform that this VM instance must be created only after the
+    # storage bucket has been created.
+    depends_on = [google_storage_bucket.example_bucket]
+
+    name         = "terraform-instance-2"
+    machine_type = "f1-micro"
+
+    boot_disk {
+      initialize_params {
+        image = "cos-cloud/cos-stable"
+      }
+    }
+
+    network_interface {
+      network = google_compute_network.vpc_network.self_link
+      access_config {
+      }
+    }
+  }
+  ```
+- `terraform apply` "
+```
+...
+google_storage_bucket.example_bucket: Creating...
+google_storage_bucket.example_bucket: Creation complete after 1s [id=terraform-example-bucket-galser-20191016-01]
+google_compute_instance.another_instance: Creating...
+google_compute_instance.another_instance: Still creating... [10s elapsed]
+google_compute_instance.another_instance: Creation complete after 11s [id=terraform-instance-2]
+
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+```
+- And we need to remove them (2 last resources ) before next part. 
+
 
 # TODO
 
 
-- [ ] Resource Dependencies
 - [ ] Provision
 - [ ] Input Variables
 - [ ] Output Variables
@@ -289,3 +468,4 @@ You can read more about service account keys in [Google's documentation](https:/
 - [x] Build Infrastructure
 - [x] Change Infrastructure
 - [x] Destroy Infrastructure
+- [x] Resource Dependencies

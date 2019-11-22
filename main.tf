@@ -65,3 +65,57 @@ module "network" {
     subnet-02 = []
   }
 }
+
+
+## 
+
+
+
+resource "google_compute_instance_template" "template_three_disk" {
+  name         = "terraform-instance"
+  machine_type = "f1-micro"
+  tags         = ["web", "dev"]
+
+  labels = {
+      environment = "dev"
+      purpose     = "coffe_break"
+    }
+
+  disk {
+    source_image = "debian-cloud/debian-9"
+    auto_delete  = true
+    disk_size_gb = 100
+    boot         = true
+  }
+
+  network_interface {
+#    network = google_compute_network.vpc_network.self_link
+    network    = module.network.network_name
+    subnetwork = module.network.subnets_names[0]    
+    access_config {
+      nat_ip = google_compute_address.vm_static_ip.address
+    }
+  }
+
+  can_ip_forward = true
+}
+
+resource "google_compute_instance_from_template" "test" {
+  name = "instance-from-template"
+  #zone = "us-central1-a"
+
+  source_instance_template = google_compute_instance_template.template_three_disk.self_link
+
+  boot_disk {
+    initialize_params {
+      image = "cos-cloud/cos-stable"
+    }
+  }
+
+
+  // Override fields from instance template
+  can_ip_forward = false
+  labels = {
+    purpose = "go_west"
+  }
+}
